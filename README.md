@@ -1,58 +1,193 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Toko Online Mini — Aplikasi Toko Online Sederhana
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Toko Online Mini adalah aplikasi web e-commerce sederhana yang dibangun dengan **Laravel**, **Blade**, dan **Tailwind CSS**. Project ini merupakan tugas semester dengan fokus pada perancangan dan implementasi **relasi antar tabel basis data** menggunakan Eloquent ORM.
 
-## About Laravel
+## Fitur
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Katalog produk yang dikelompokkan berdasarkan kategori, dengan tag untuk penyaringan yang fleksibel
+- Registrasi dan login pengguna dengan dua peran: `admin` dan `customer`
+- Profil pengguna dan beberapa alamat pengiriman per pengguna
+- Pemesanan: satu pesanan berisi satu atau lebih produk lengkap dengan jumlah dan harga
+- Data pembayaran untuk setiap pesanan (metode, jumlah, status)
+- Ulasan produk berupa rating dan komentar
+- Stok berkurang otomatis ketika pesanan dibuat
+- Hak akses berbasis peran: `admin` mengelola produk, kategori, dan pesanan; `customer` berbelanja dan memberi ulasan
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Desain Basis Data
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Skema lengkap dan seluruh relasinya didokumentasikan dengan diagram Mermaid berikut.
 
-## Learning Laravel
+```mermaid
+erDiagram
+    USERS {
+        bigint id PK
+        string name
+        string email "unique"
+        string password
+        enum role "admin, customer"
+    }
+    PROFILES {
+        bigint id PK
+        bigint user_id FK "unique"
+        string phone
+        string avatar "nullable"
+        text bio "nullable"
+    }
+    ADDRESSES {
+        bigint id PK
+        bigint user_id FK
+        string recipient_name
+        text full_address
+        string city
+        string postal_code
+        boolean is_default
+    }
+    CATEGORIES {
+        bigint id PK
+        string name
+        string slug "unique"
+    }
+    PRODUCTS {
+        bigint id PK
+        bigint category_id FK
+        string name
+        string slug "unique"
+        text description
+        decimal price
+        int stock
+        string image "nullable"
+        boolean is_active
+    }
+    TAGS {
+        bigint id PK
+        string name
+    }
+    PRODUCT_TAG {
+        bigint product_id PK, FK
+        bigint tag_id PK, FK
+    }
+    ORDERS {
+        bigint id PK
+        bigint user_id FK
+        bigint address_id FK
+        string order_number "unique"
+        decimal total_price
+        enum status "pending, paid, shipped, completed, cancelled"
+        datetime ordered_at
+    }
+    ORDER_ITEMS {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        int quantity
+        decimal price
+    }
+    PAYMENTS {
+        bigint id PK
+        bigint order_id FK "unique"
+        string method
+        decimal amount
+        enum status "unpaid, paid, failed"
+        datetime paid_at "nullable"
+    }
+    REVIEWS {
+        bigint id PK
+        bigint user_id FK
+        bigint product_id FK
+        int rating
+        text comment "nullable"
+    }
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+    USERS ||--o| PROFILES : "has one"
+    USERS ||--o{ ADDRESSES : "has many"
+    USERS ||--o{ ORDERS : places
+    USERS ||--o{ REVIEWS : writes
+    ADDRESSES ||--o{ ORDERS : "shipped to"
+    CATEGORIES ||--o{ PRODUCTS : groups
+    PRODUCTS ||--o{ ORDER_ITEMS : "ordered in"
+    PRODUCTS ||--o{ REVIEWS : receives
+    PRODUCTS ||--o{ PRODUCT_TAG : "tagged with"
+    TAGS ||--o{ PRODUCT_TAG : labels
+    ORDERS ||--|{ ORDER_ITEMS : contains
+    ORDERS ||--o| PAYMENTS : "paid by"
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### Relasi yang Dicakup
 
-## Contributing
+| Jenis                        | Contoh                                                                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One-to-One                   | `User` ↔ `Profile`, `Order` ↔ `Payment`                                                                                                                  |
+| One-to-Many                  | `Category` → `Product`, `User` → `Order`, `User` → `Address`, `User` → `Review`, `Address` → `Order`, `Order` → `OrderItem`, `Product` → `Review`          |
+| Many-to-Many                 | `Product` ↔ `Tag` (`product_tag`)                                                                                                                        |
+| Many-to-Many dengan data pivot | `Order` ↔ `Product` melalui `order_items` (`quantity`, `price`)                                                                                        |
+| Has-Many-Through             | `User` → `OrderItem` melalui `Order`                                                                                                                     |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Aturan Bisnis
 
-## Code of Conduct
+- `order_number` dan `slug` produk harus unik.
+- Kolom `price` pada `order_items` adalah salinan harga produk saat pembelian, sehingga perubahan harga di kemudian hari tidak memengaruhi pesanan lama.
+- `orders.total_price` adalah jumlah dari `quantity × price` seluruh item pesanan tersebut.
+- Pesanan hanya dapat dibuat jika stok setiap produk mencukupi; stok dikurangi saat pesanan dibuat.
+- Setiap pesanan memiliki paling banyak satu data pembayaran.
+- Hanya customer yang pernah memesan suatu produk yang dapat mengulasnya.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Teknologi
 
-## Security Vulnerabilities
+- PHP 8.3+ dan Laravel
+- Template Blade
+- Tailwind CSS (melalui Vite)
+- MySQL atau SQLite
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Memulai
 
-## License
+```bash
+# Clone repository
+git clone https://github.com/nrhyti/laravel5d
+cd laravel5d
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Install dependensi
+composer install
+npm install
+
+# Konfigurasi environment
+cp .env.example .env
+php artisan key:generate
+
+# Buat skema tabel dan isi data contoh
+php artisan migrate --seed
+
+# Jalankan server pengembangan
+npm run dev
+php artisan serve
+```
+
+Lalu buka <http://localhost:8000>.
+
+## Struktur Project
+
+```
+app/Models/        Model Eloquent dan relasinya
+database/
+  migrations/      Definisi tabel
+  factories/       Pembuat data palsu
+  seeders/         Kategori dan data contoh
+resources/views/   Template Blade
+```
+
+## Roadmap
+
+- [x] Perancangan dan dokumentasi basis data
+- [ ] Migration, model, factory, dan seeder
+- [ ] Autentikasi dan hak akses berbasis peran
+- [ ] Pengelolaan produk dan kategori (CRUD)
+- [ ] Keranjang, checkout, dan pesanan
+- [ ] Pembayaran
+- [ ] Ulasan
+
+## Penulis
+
+Nama Norhayati — NPM NPM 2410010025
+
+## Lisensi
+
+Dirilis di bawah [Lisensi MIT](https://opensource.org/licenses/MIT).
